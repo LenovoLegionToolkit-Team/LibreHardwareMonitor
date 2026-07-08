@@ -20,7 +20,7 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restore Dependencies
-        run: dotnet restore LibreHardwareMonitor.sln
+        run: dotnet restore LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj -p:Platform=x64
 
       - name: Build
-        run: dotnet build LibreHardwareMonitor.sln -c Release
+        run: dotnet build LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj -c Release -p:Platform=x64

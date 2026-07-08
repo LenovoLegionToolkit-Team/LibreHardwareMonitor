@@ -1,12 +1,9 @@
-name: Publish NuGet Package (.NET 9.0)
+name: Publish NuGet Package
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'NuGet version (e.g., 1.0.0)'
-        required: true
-        type: string
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   publish:
@@ -15,46 +12,44 @@ jobs:
     permissions:
       id-token: write
       contents: write
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup .NET 9.0 SDK
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '8.0.x'
 
-      - name: Clean
-        run: dotnet clean LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj -c Release
+      - name: Restore Dependencies
+        run: dotnet restore LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj -p:Platform=x64
 
-      - name: Pack NuGet package
-        run: >
-          dotnet pack LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj 
-          -c Release 
-          -o Release 
-          /p:Version=${{ github.event.inputs.version }} 
-          /p:TargetFrameworks=net9.0 
-          /p:Platform=x64
+      - name: Extract version
+        id: get_version
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v', ''
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+        shell: powershell
 
-      - name: Verify package
-        run: dir Release\*.nupkg
-        shell: cmd
+      - name: Build
+        run: dotnet build LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj -c Release /p:Version=${{ steps.get_version.outputs.version }} -p:Platform=x64
 
-      - name: NuGet login (OIDC)
+      - name: Pack
+        run: dotnet pack LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj -c Release /p:Version=${{ steps.get_version.outputs.version }} -o Release -p:Platform=x64
+
+      - name: NuGet login
         uses: NuGet/login@v1
+        id: login
         with:
-          user: Kaguya
+          user: LenovoLegionToolkit-Team
 
       - name: Push to NuGet.org
-        run: dotnet nuget push Release\*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push Release\*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
 
-      - name: Create GitHub Release and upload .nupkg
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.event.inputs.version }}
-          name: v${{ github.event.inputs.version }}
-          generate_release_notes: true
           files: Release\*.nupkg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
