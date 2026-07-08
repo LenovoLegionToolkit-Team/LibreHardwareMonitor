@@ -25,8 +25,8 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Pack NuGet package
-        run: dotnet pack LibreHardwareMonitor.sln -c Release -o Release /p:Version=${{ github.event.inputs.version }} /p:Platform="AnyCPU" /p:RuntimeIdentifier=win-x64
+      - name: Pack
+        run: dotnet pack LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj -c Release -o Release /p:Version=${{ github.event.inputs.version }} /p:Platform=x64 /p:RuntimeIdentifier=win-x64
 
       - name: NuGet login (OIDC)
         uses: NuGet/login@v1
