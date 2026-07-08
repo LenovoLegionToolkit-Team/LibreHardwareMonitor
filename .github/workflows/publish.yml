@@ -1,9 +1,12 @@
 name: Publish NuGet Package
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'NuGet version (e.g., 1.0.0)'
+        required: true
+        type: string
 
 jobs:
   publish:
@@ -12,6 +15,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -21,21 +25,10 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restore Dependencies
-        run: dotnet restore LibreHardwareMonitor.sln
+      - name: Pack NuGet package
+        run: dotnet pack LibreHardwareMonitor.sln -c Release -o Release /p:Version=${{ github.event.inputs.version }}
 
-      - name: Extract version
-        id: get_version
-        run: |
-          $tag = "${{ github.ref_name }}"
-          $version = $tag -replace '^v', ''
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-        shell: powershell
-
-      - name: Build and Pack
-        run: dotnet build LibreHardwareMonitor.sln -c Release /p:Version=${{ steps.get_version.outputs.version }}
-
-      - name: NuGet login
+      - name: NuGet login (OIDC)
         uses: NuGet/login@v1
         id: login
         with:
@@ -44,9 +37,12 @@ jobs:
       - name: Push to NuGet.org
         run: dotnet nuget push Release\*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
 
-      - name: Upload to GitHub Release
+      - name: Create GitHub Release and upload .nupkg
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: v${{ github.event.inputs.version }}
+          generate_release_notes: true
           files: Release\*.nupkg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
