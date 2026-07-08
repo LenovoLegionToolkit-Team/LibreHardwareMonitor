@@ -10,34 +10,29 @@ on:
 
 jobs:
   publish:
-    name: Build, Pack, and Publish
     runs-on: windows-latest
     permissions:
       id-token: write
       contents: write
-
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Pack
-        run: dotnet pack LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj -c Release -o Release /p:Version=${{ github.event.inputs.version }} /p:Platform=x64 /p:RuntimeIdentifier=win-x64
+      - name: Pack (multi-framework, no RID)
+        run: dotnet pack LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj -c Release -o Release /p:Version=${{ github.event.inputs.version }} /p:Platform=x64 -p:RuntimeIdentifier= -p:IncludeRuntime=false
 
-      - name: NuGet login (OIDC)
+      - name: NuGet login
         uses: NuGet/login@v1
         id: login
         with:
           user: Kaguya
 
-      - name: Push to NuGet.org
+      - name: Push to NuGet
         run: dotnet nuget push Release\*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
 
-      - name: Create GitHub Release and upload .nupkg
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.event.inputs.version }}
