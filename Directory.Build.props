@@ -1,6 +1,15 @@
 <Project>
   <PropertyGroup>
-    <Version>0.9.6</Version>
-    <Copyright>LibreHardwareMonitor</Copyright>
+    <!-- Base version components: update these when bumping the version -->
+    <VersionMajor>0</VersionMajor>
+    <VersionMinor>9</VersionMinor>
+    <VersionBase>$(VersionMajor).$(VersionMinor)</VersionBase>
+    <Authors>LibreHardwareMonitor, LenovoLegionToolkit-Team</Authors>
+    <Copyright>Copyright © LibreHardwareMonitor</Copyright>
+    <RepositoryUrl>https://github.com/LenovoLegionToolkit-Team/LibreHardwareMonitor</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/LenovoLegionToolkit-Team/LibreHardwareMonitor</PackageProjectUrl>
+    <RepositoryType>git</RepositoryType>
+    <!-- Prevent SourceLink from appending a second commit SHA to InformationalVersion -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 </Project>
