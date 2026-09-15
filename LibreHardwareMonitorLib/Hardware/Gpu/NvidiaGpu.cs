@@ -18,6 +18,8 @@ namespace LibreHardwareMonitor.Hardware.Gpu;
 internal sealed class NvidiaGpu : GenericGpu
 {
     private readonly int _adapterIndex;
+    private readonly bool _busIdKnown;
+    private readonly uint _busId;
     private readonly Sensor[] _clocks;
     private readonly int _clockVersion;
     private readonly Sensor[] _controls;
@@ -38,7 +40,6 @@ internal sealed class NvidiaGpu : GenericGpu
     private readonly Sensor _memoryTotal;
     private readonly Sensor _memoryUsed;
     private readonly Sensor _memoryLoad;
-    private readonly NvidiaML.NvmlDevice? _nvmlDevice;
     private readonly Sensor _pcieThroughputRx;
     private readonly Sensor _pcieThroughputTx;
     private readonly Sensor[] _powers;
@@ -62,6 +63,17 @@ internal sealed class NvidiaGpu : GenericGpu
         0x89DE1043, // Astral 5080 OC
     ];
 
+    private NvidiaML.NvmlDevice? GetNvmlDevice()
+    {
+        if (!NvidiaML.IsAvailable)
+            return null;
+
+        if (_busIdKnown)
+            return NvidiaML.NvmlDeviceGetHandleByPciBusId($" 0000:{_busId:X2}:00.0") ?? NvidiaML.NvmlDeviceGetHandleByIndex(_adapterIndex);
+
+        return NvidiaML.NvmlDeviceGetHandleByIndex(_adapterIndex);
+    }
+
     public NvidiaGpu(int adapterIndex, NvApi.NvPhysicalGpuHandle handle, NvApi.NvDisplayHandle? displayHandle, ISettings settings)
         : base(GetName(handle),
                new Identifier("gpu-nvidia", adapterIndex.ToString(CultureInfo.InvariantCulture)),
@@ -72,6 +84,8 @@ internal sealed class NvidiaGpu : GenericGpu
         _displayHandle = displayHandle;
 
         bool hasBusId = NvApi.NvAPI_GPU_GetBusId(handle, out uint busId) == NvApi.NvStatus.OK;
+        _busIdKnown = hasBusId;
+        _busId = busId;
 
         // Thermal settings.
         NvApi.NvThermalSettings thermalSettings = GetThermalSettings(out NvApi.NvStatus status);
@@ -340,12 +354,9 @@ internal sealed class NvidiaGpu : GenericGpu
 
         if (NvidiaML.IsAvailable || NvidiaML.Initialize())
         {
-            if (hasBusId)
-                _nvmlDevice = NvidiaML.NvmlDeviceGetHandleByPciBusId($" 0000:{busId:X2}:00.0") ?? NvidiaML.NvmlDeviceGetHandleByIndex(_adapterIndex);
-            else
-                _nvmlDevice = NvidiaML.NvmlDeviceGetHandleByIndex(_adapterIndex);
+            NvidiaML.NvmlDevice? nvmlDevice = GetNvmlDevice();
 
-            if (_nvmlDevice.HasValue)
+            if (nvmlDevice.HasValue)
             {
                 _powerUsage = new Sensor("GPU Package", 0, SensorType.Power, this, settings);
 
@@ -354,7 +365,7 @@ internal sealed class NvidiaGpu : GenericGpu
 
                 if (!Software.OperatingSystem.IsUnix)
                 {
-                    NvidiaML.NvmlPciInfo? pciInfo = NvidiaML.NvmlDeviceGetPciInfo(_nvmlDevice.Value);
+                    NvidiaML.NvmlPciInfo? pciInfo = NvidiaML.NvmlDeviceGetPciInfo(nvmlDevice.Value);
 
                     if (pciInfo is { } pci)
                     {
@@ -750,9 +761,10 @@ internal sealed class NvidiaGpu : GenericGpu
                 }
             }
 
-            if (NvidiaML.IsAvailable && _nvmlDevice.HasValue)
+            NvidiaML.NvmlDevice? nvmlDevice = GetNvmlDevice();
+            if (nvmlDevice.HasValue)
             {
-                int? result = NvidiaML.NvmlDeviceGetPowerUsage(_nvmlDevice.Value);
+                int? result = NvidiaML.NvmlDeviceGetPowerUsage(nvmlDevice.Value);
                 if (result.HasValue)
                 {
                     _powerUsage.Value = result.Value / 1000f;
@@ -760,14 +772,14 @@ internal sealed class NvidiaGpu : GenericGpu
                 }
 
                 // In MB/s, throughput sensors are passed as in KB/s.
-                uint? rx = NvidiaML.NvmlDeviceGetPcieThroughput(_nvmlDevice.Value, NvidiaML.NvmlPcieUtilCounter.RxBytes);
+                uint? rx = NvidiaML.NvmlDeviceGetPcieThroughput(nvmlDevice.Value, NvidiaML.NvmlPcieUtilCounter.RxBytes);
                 if (rx.HasValue)
                 {
                     _pcieThroughputRx.Value = rx * 1024;
                     ActivateSensor(_pcieThroughputRx);
                 }
 
-                uint? tx = NvidiaML.NvmlDeviceGetPcieThroughput(_nvmlDevice.Value, NvidiaML.NvmlPcieUtilCounter.TxBytes);
+                uint? tx = NvidiaML.NvmlDeviceGetPcieThroughput(nvmlDevice.Value, NvidiaML.NvmlPcieUtilCounter.TxBytes);
                 if (tx.HasValue)
                 {
                     _pcieThroughputTx.Value = tx * 1024;
